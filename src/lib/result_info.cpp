@@ -193,6 +193,7 @@ void result_info::write(std::ostream& out, std::string& ext,
 		mol.SetTitle(name); //otherwise lose space separated names
 		outconv.SetLast(false);
 		outconv.SetOutputIndex(modelnum+1); //for pdb multi model output, workaround OB bug with ignoring model 1
+
 		outconv.Write(&mol, &out);
 	}
 }
