@@ -332,7 +332,7 @@ void createSDFContext(OBMol& mol, vector<OBAtom*> atoms, sdfcontext& sc)
 	{
 		unsigned first = idx2atompos[bitr->GetBeginAtomIdx()];
 		unsigned second = idx2atompos[bitr->GetEndAtomIdx()];
-		sc.bonds.push_back(sdfcontext::sdfbond(first, second, bitr->GetBO()));
+		sc.bonds.push_back(sdfcontext::sdfbond(first, second, bitr->GetBondOrder()));
 	}
 }
 

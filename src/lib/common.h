@@ -40,6 +40,11 @@
 #include <boost/serialization/base_object.hpp> // movable_atom needs it - (derived from atom)
 #include <boost/filesystem/path.hpp> // typedef'ed
 
+#include <openbabel/atom.h>
+#include <openbabel/mol.h>
+#include <openbabel/bond.h>
+#include <openbabel/obiter.h>
+#include <openbabel/generic.h>
 
 #include "macros.h"
 
