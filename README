@@ -27,6 +27,14 @@ dependencies are boost (1.54) and openbabel.  A static binary is provided
 in case these dependencies cannot be met (however, it probably still will
 not work if the kernel is older than 2.6.24).
 
+If building from source:
+```
+apt install git libboost-all-dev libopenbabel-dev build-essential libeigen3-dev
+git clone https://git.code.sf.net/p/smina/code smina-code
+cd smina-code/build/linux/release
+make -j12
+```
+
 Input:
   -r [ --receptor ] arg rigid part of the receptor (PDBQT)
   --flex arg            flexible side chains, if any (PDBQT)
