@@ -31,10 +31,17 @@
  ***********************************************************************/
 
 #include "PDBQTUtilities.h"
-#include <openbabel/elements.h>
 #include <cassert>
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
+
+#if (OB_VERSION >= OB_VERSION_CHECK(2,4,90))
+# include <openbabel/elements.h>
+# define GET_SYMBOL OpenBabel::OBElements::GetSymbol
+#else
+# define GET_SYMBOL etab.GetSymbol
+#endif
+
 using namespace std;
 using namespace OpenBabel;
 
@@ -311,7 +318,7 @@ void createSDFContext(OBMol& mol, vector<OBAtom*> atoms, sdfcontext& sc)
 	for (unsigned i = 0, n = atoms.size(); i < n; i++)
 	{
 		OBAtom *atom = atoms[i];
-		const char *element_name = OBElements::GetSymbol(atom->GetAtomicNum());
+		const char *element_name = GET_SYMBOL(atom->GetAtomicNum());
 		sc.atoms.push_back(sdfcontext::sdfatom(element_name));
 
 		///check for special properties
@@ -351,7 +358,7 @@ static void OutputAtom(OBAtom* atom, context& lines, vector<OBAtom*>& atomorder,
 	stringstream ofs;
 
 	OBResidue *res;
-	strncpy(type_name, OBElements::GetSymbol(atom->GetAtomicNum()), sizeof(type_name));
+	strncpy(type_name, GET_SYMBOL(atom->GetAtomicNum()), sizeof(type_name));
 	type_name[sizeof(type_name) - 1] = '\0';
 	//two char. elements are on position 13 and 14 one char. start at 14
 
@@ -372,7 +379,7 @@ static void OutputAtom(OBAtom* atom, context& lines, vector<OBAtom*>& atomorder,
 		the_chain = res->GetChain();
 
 		//two char. elements are on position 13 and 14 one char. start at 14
-		if (strlen(OBElements::GetSymbol(atom->GetAtomicNum())) == 1)
+		if (strlen(GET_SYMBOL(atom->GetAtomicNum())) == 1)
 		{
 			if (strlen(type_name) < 4)
 			{
@@ -398,7 +405,7 @@ static void OutputAtom(OBAtom* atom, context& lines, vector<OBAtom*>& atomorder,
 		res_num = 1;
 	}
 
-	element_name = OBElements::GetSymbol(atom->GetAtomicNum());
+	element_name = GET_SYMBOL(atom->GetAtomicNum());
 	char element_name_final[3];
 	element_name_final[2] = '\0';
 

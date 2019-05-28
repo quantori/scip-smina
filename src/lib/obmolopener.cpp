@@ -45,7 +45,7 @@ void obmol_opener::openForInput(OBConversion& conv, const std::string& name)
 	//does not actually open the file as a gzip stream
 	std::ifstream *uncompressed_inmol = new std::ifstream(name.c_str());
 	streams.push_back(uncompressed_inmol);
-	filtering_stream<input> *inmol = new filtering_stream<input>();
+	filtering_istream *inmol = new filtering_istream();
 	streams.push_back((std::istream*) inmol);
 
 	std::string::size_type pos = name.rfind(".gz");
@@ -71,7 +71,7 @@ void obmol_opener::obmol_opener::openForOutput(OBConversion& outconv, const std:
 	}
 
 	std::ofstream *uncompressed_outfile = new std::ofstream(outname.c_str());
-	filtering_stream<output>* outfile = new filtering_stream<output>();
+	filtering_ostream* outfile = new filtering_ostream();
 	streams.push_back((std::ostream*) outfile);
 	streams.push_back(uncompressed_outfile); //has to be deleted after filter
 
