@@ -24,6 +24,19 @@
 #define VINA_ATOM_CONSTANTS_H
 
 #include "common.h"
+#include <openbabel/atom.h>
+#include <openbabel/mol.h>
+#include <openbabel/obiter.h>
+#include <openbabel/babelconfig.h>
+
+#if (OB_VERSION >= OB_VERSION_CHECK(2,4,90))
+# include <openbabel/elements.h>
+# define GET_SYMBOL OpenBabel::OBElements::GetSymbol
+# define GET_HVY(a) a->GetHvyDegree()
+#else
+# define GET_SYMBOL etab.GetSymbol
+# define GET_HVY(a) a->GetHvyValence()
+#endif
 
 // based on SY_TYPE_* but includes H
 const sz EL_TYPE_H    =  0;

@@ -35,12 +35,6 @@
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
 
-#if (OB_VERSION >= OB_VERSION_CHECK(2,4,90))
-# include <openbabel/elements.h>
-# define GET_SYMBOL OpenBabel::OBElements::GetSymbol
-#else
-# define GET_SYMBOL etab.GetSymbol
-#endif
 
 using namespace std;
 using namespace OpenBabel;
@@ -158,8 +152,8 @@ bool IsRotBond_PDBQT(OBBond * the_bond, unsigned desired_root)
 	{
 		return false;
 	}
-	if (((the_bond->GetBeginAtom())->GetHvyValence() == 1)
-			|| ((the_bond->GetEndAtom())->GetHvyValence() == 1))
+	if (((GET_HVY(the_bond->GetBeginAtom())) == 1)
+			|| (GET_HVY(the_bond->GetEndAtom()) == 1))
 	{
 		if (the_bond->GetBeginAtomIdx() == desired_root)
 			return true;

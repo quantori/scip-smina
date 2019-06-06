@@ -1292,7 +1292,9 @@ Thank you!\n";
 		if (settings.verbosity > 1 && settings.exhaustiveness < settings.cpu)
 			log
 					<< "WARNING: at low exhaustiveness, it may be impossible to utilize all CPUs\n";
-
+		if (settings.verbosity <= 1) {
+			OpenBabel::obErrorLog.SetOutputLevel(OpenBabel::obError);
+		}
 
 		//dkoes - parse in receptor once
 		model initm;
