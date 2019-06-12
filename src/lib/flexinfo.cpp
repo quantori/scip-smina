@@ -243,7 +243,7 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 				for(unsigned i = 0, n = tokens.size(); i < n; i++)
 				{
 					std::string line = tokens[i];
-					if(line.size() > 25)
+					if(line.size() > 26)
 					{
 						//replace UNL with resn
 						for(unsigned p = 0; p < 3; p++)
@@ -257,9 +257,9 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 						}
 						
 						line[21] = ch;
-					}
-					if(icode > 0) {
-						line[26] = icode;
+	          if(icode > 0) {
+	            line[26] = icode;
+	          }
 					}
 					if(line.size() > 0)
 					{
