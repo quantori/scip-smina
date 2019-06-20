@@ -95,10 +95,13 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 					OBResidue *residue = a->GetResidue();
 					if (residue)
 					{
-						char ch = residue->GetChain();
-						int resid = residue->GetNum();
-						char icode = residue->GetInsertionCode();
-						residues.insert(tuple<char, int, char>(ch, resid, icode));
+						std::string resname = residue->GetName();
+						if(!(resname == "ALA" || resname == "GLY" || resname == "PRO")){
+							char ch = residue->GetChain();
+							int resid = residue->GetNum();
+							char icode = residue->GetInsertionCode();
+							residues.insert(tuple<char, int, char>(ch, resid, icode));	
+						}
 					}
 					break;
 				}
