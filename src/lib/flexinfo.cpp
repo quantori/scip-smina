@@ -65,21 +65,25 @@ FlexInfo::FlexInfo(const std::string& flexres, double flexdist, const std::strin
 void FlexInfo::sanitizeFlexres(OpenBabel::OBMol& receptor){
 	using namespace OpenBabel;
 
-	if(!hasContent()){ // Nothing to do
+	if(!hasContent()){ 
+		// Nothing to do
 		return;
 	}
 
+	// Iterate over all receptor residues
 	for(OBResidueIterator ritr = receptor.BeginResidues(), rend = receptor.EndResidues(); ritr != rend; ++ritr){
 		OBResidue *r = *ritr;
+
 		char ch = r->GetChain();
 		int resid = r->GetNum();
 		char icode = r->GetInsertionCode();
 		std::string resname = r->GetName();
 
 		tuple<char,int,char> res(ch,resid,icode);
+
 		if( residues.count(res) > 0){ // Residue in user-specified flexible residues
-			if(resname == "ALA" || resname == "GLY" || resname == "PRO"){
-				residues.erase(res);
+			if(resname == "ALA" || resname == "GLY" || resname == "PRO"){ // Residue can't be flexible
+				residues.erase(res); // Remove residue from list of flexible residues
 
 				log << "WARNING: Removing residue " << resname;
 				log << " " << ch << ":" << resid << ":" << icode;
@@ -122,7 +126,7 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 					if (residue)
 					{
 						std::string resname = residue->GetName();
-						if(!(resname == "ALA" || resname == "GLY" || resname == "PRO")){
+						if(!(resname == "ALA" || resname == "GLY" || resname == "PRO")){ // Chech that residue can be flexible
 							char ch = residue->GetChain();
 							int resid = residue->GetNum();
 							char icode = residue->GetInsertionCode();
