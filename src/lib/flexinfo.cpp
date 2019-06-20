@@ -85,9 +85,8 @@ void FlexInfo::sanitizeFlexres(OpenBabel::OBMol& receptor){
 			if(resname == "ALA" || resname == "GLY" || resname == "PRO"){ // Residue can't be flexible
 				residues.erase(res); // Remove residue from list of flexible residues
 
-				log << "WARNING: Removing residue " << resname;
-				log << " " << ch << ":" << resid << ":" << icode;
-				log << ". Can't be flexible.\n";
+				log << "WARNING: Removing non-flexible residue " << resname;
+				log << " " << ch << ":" << resid << ":" << icode << "\n";
 			}
 		}
 	}
