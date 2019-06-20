@@ -57,6 +57,8 @@ public:
 		return residues.size() >0 || flex_dist > 0;
 	}
 
+	void sanitizeFlexres(OpenBabel::OBMol& receptor);
+
 	void extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid, std::string& flexpdbqt);
 
 };
