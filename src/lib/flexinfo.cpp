@@ -26,15 +26,14 @@ FlexInfo::FlexInfo(const std::string& flexres, double flexdist, const std::strin
 			char icode = 0;
 			if(chres.size() >= 2)
 			{
-				if(chres[0].size() != 1)
-				log << "WARNING: chain specification not single character " << chres[0] << "\n";
+				if(chres[0].size() != 1){
+					log << "WARNING: chain specification not single character " << chres[0] << "\n";
+				}
 				chain = chres[0][0]; //if empty will be null which is what is desired
 				resid = boost::lexical_cast<int>(chres[1]);
 				if(chres.size() == 3) {
 					icode = chres[2][0];
 					if(chres[2].size() != 1) log << "WARNING: icode not single character " << chres[2] << "\n";
-				} else {
-					log << "WARNING: ignoring invalid chain:resid:icode specifier " << tok << "\n";
 				}
 				
 			}
@@ -61,6 +60,36 @@ FlexInfo::FlexInfo(const std::string& flexres, double flexdist, const std::strin
 		conv.Read(&distligand);//first ligand only
 	}
 
+}
+
+void FlexInfo::sanitizeFlexres(OpenBabel::OBMol& receptor){
+	using namespace OpenBabel;
+
+	if(!hasContent()){ 
+		// Nothing to do
+		return;
+	}
+
+	// Iterate over all receptor residues
+	for(OBResidueIterator ritr = receptor.BeginResidues(), rend = receptor.EndResidues(); ritr != rend; ++ritr){
+		OBResidue *r = *ritr;
+
+		char ch = r->GetChain();
+		int resid = r->GetNum();
+		char icode = r->GetInsertionCode();
+		std::string resname = r->GetName();
+
+		tuple<char,int,char> res(ch,resid,icode);
+
+		if( residues.count(res) > 0){ // Residue in user-specified flexible residues
+			if(resname == "ALA" || resname == "GLY" || resname == "PRO"){ // Residue can't be flexible
+				residues.erase(res); // Remove residue from list of flexible residues
+
+				log << "WARNING: Removing non-flexible residue " << resname;
+				log << " " << ch << ":" << resid << ":" << icode << "\n";
+			}
+		}
+	}
 }
 
 void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
@@ -95,10 +124,13 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 					OBResidue *residue = a->GetResidue();
 					if (residue)
 					{
-						char ch = residue->GetChain();
-						int resid = residue->GetNum();
-						char icode = residue->GetInsertionCode();
-						residues.insert(tuple<char, int, char>(ch, resid, icode));
+						std::string resname = residue->GetName();
+						if(!(resname == "ALA" || resname == "GLY" || resname == "PRO")){ // Chech that residue can be flexible
+							char ch = residue->GetChain();
+							int resid = residue->GetNum();
+							char icode = residue->GetInsertionCode();
+							residues.insert(tuple<char, int, char>(ch, resid, icode));	
+						}
 					}
 					break;
 				}

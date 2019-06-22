@@ -814,6 +814,7 @@ static void create_init_model(const std::string& rigid_name,
 			}
 			OBMol rigid;
 			std::string flexstr;
+			finfo.sanitizeFlexres(rec);
 			finfo.extractFlex(rec, rigid, flexstr);
 
 			std::string recstr = conv.WriteString(&rigid);
@@ -924,7 +925,7 @@ Thank you!\n";
 		("ligand,l", value<std::vector<std::string> >(&ligand_names),
 				"ligand(s)")
 		("flexres", value<std::string>(&flex_res),
-				"flexible side chains specified by comma separated list of chain:resid")
+				"flexible side chains specified by comma separated list of chain:resid or chain:resid:icode")
 		("flexdist_ligand", value<std::string>(&flexdist_ligand),
 						"Ligand to use for flexdist")
 		("flexdist", value<double>(&flex_dist),
