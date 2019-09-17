@@ -97,7 +97,7 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 {
 	using namespace OpenBabel;
 	rigid = receptor;
-	rigid.SetChainsPerceived(true); //workaround for openbabel bug
+	rigid.SetChainsPerceived(); //workaround for openbabel bug
 	flexpdbqt.clear();
 
 	//identify residues close to distligand here
