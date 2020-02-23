@@ -89,7 +89,8 @@ unsigned convertParsing(OBMol& mol, parsing_struct& p, context& c, int rootatom,
 {
 	if(addH)
 		mol.AddHydrogens();
-
+	mol.PerceiveBondOrders();
+	mol.SetAromaticPerceived();
 	mol.SetAutomaticFormalCharge(false);
 	DeleteHydrogens(mol); //leaves just polars
 

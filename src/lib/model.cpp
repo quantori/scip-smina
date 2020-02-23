@@ -861,7 +861,7 @@ std::string model::ligand_atom_str(sz i, sz lig) const
 	if(pdbline.size() > 6)
 		return pdbline.substr(6,9);
 	else
-		return "";
+		return std::string(smina_atom_type::data[atoms[i].get()].smina_name);
 }
 
 
