@@ -10,7 +10,6 @@
 if(OPENBABEL2_INCLUDE_DIR AND OPENBABEL2_LIBRARIES)
   # in cache already or user-specified
   set(OPENBABEL2_FOUND TRUE)
-
 else()
 
   if(NOT OPENBABEL2_INCLUDE_DIR)
