@@ -18,7 +18,17 @@ add_library(libsmina
 
 target_include_directories(libsmina PUBLIC src/lib/)
 
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS 
+  iostreams 
+  timer 
+  system 
+  regex 
+  thread 
+  serialization 
+  filesystem 
+  program_options 
+  date_time
+)
 include_directories(libsmina ${Boost_INCLUDE_DIRS})
 target_link_libraries(libsmina ${Boost_LIBRARIES})
 message("-- Found Boost include files at ${Boost_INCLUDE_DIRS}")
