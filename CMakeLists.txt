@@ -54,10 +54,3 @@ endif()
 
 add_executable(smina src/main/main.cpp)
 target_link_libraries(smina libsmina)
-
-add_executable(fromsmina src/fromsmina/fromsmina.cpp)
-target_link_libraries(fromsmina libsmina)
-
-add_executable(tosmina src/tosmina/tosmina.cpp)
-target_link_libraries(tosmina libsmina)
-
