@@ -5,7 +5,7 @@ if(NOT CMAKE_BUILD_TYPE)
         set(CMAKE_BUILD_TYPE Release)
 endif(NOT CMAKE_BUILD_TYPE)
 
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/Cmake/Modules)
 
 file(GLOB sminasrc
     "src/lib/*.h"
@@ -54,3 +54,10 @@ endif()
 
 add_executable(smina src/main/main.cpp)
 target_link_libraries(smina libsmina)
+
+add_executable(fromsmina src/fromsmina/fromsmina.cpp)
+target_link_libraries(fromsmina libsmina)
+
+add_executable(tosmina src/tosmina/tosmina.cpp)
+target_link_libraries(tosmina libsmina)
+
