@@ -23,4 +23,4 @@
 #include "szv_grid.h"
 #include "brick.h"
 
-
+const fl szv_grid_cache::granularity = 3.0; //good balance of cache locality and avoiding redundant computation
