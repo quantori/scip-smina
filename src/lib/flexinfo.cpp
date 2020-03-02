@@ -47,7 +47,7 @@ FlexInfo::FlexInfo(const std::string& flexres, double flexdist, const std::strin
 				continue;
 			}
 
-			residues.insert(tuple<char,int,char>(chain,resid,icode));
+			residues.insert(boost::tuple<char,int,char>(chain,resid,icode));
 		}
 	}
 
@@ -129,7 +129,7 @@ void FlexInfo::extractFlex(OpenBabel::OBMol& receptor, OpenBabel::OBMol& rigid,
 							char ch = residue->GetChain();
 							int resid = residue->GetNum();
 							char icode = residue->GetInsertionCode();
-							residues.insert(tuple<char, int, char>(ch, resid, icode));	
+							residues.insert(boost::tuple<char, int, char>(ch, resid, icode));	
 						}
 					}
 					break;
