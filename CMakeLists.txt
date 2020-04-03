@@ -17,7 +17,7 @@ add_library(libsmina
 )
 
 target_include_directories(libsmina PUBLIC src/lib/)
-
+set(Boost_NO_BOOST_CMAKE ON)  #apparently required for newer boosts?
 find_package(Boost REQUIRED COMPONENTS 
   iostreams 
   timer 

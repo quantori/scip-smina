@@ -1,7 +1,0 @@
-/smina
-/vina_split
-*.o
-libsmina.a
-server
-smina.static
-tosmina
