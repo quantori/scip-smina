@@ -31,9 +31,14 @@ If building from source:
 ```
 apt install git libboost-all-dev libopenbabel-dev build-essential libeigen3-dev
 git clone https://git.code.sf.net/p/smina/code smina-code
-cd smina-code/build/linux/release
+cd smina-code
+mkdir build
+cd build
+cmake ..
 make -j12
 ```
+
+*Note:*  OpenBabel3 is required.
 
 Input:
   -r [ --receptor ] arg rigid part of the receptor (PDBQT)
