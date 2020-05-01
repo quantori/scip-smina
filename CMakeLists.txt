@@ -15,7 +15,7 @@ file(GLOB sminasrc
 add_library(libsmina
     ${sminasrc}
 )
-
+set_target_properties(libsmina PROPERTIES OUTPUT_NAME "smina")
 target_include_directories(libsmina PUBLIC src/lib/)
 set(Boost_NO_BOOST_CMAKE ON)  #apparently required for newer boosts?
 find_package(Boost REQUIRED COMPONENTS 
