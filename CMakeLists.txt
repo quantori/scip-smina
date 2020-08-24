@@ -47,3 +47,4 @@ message("-- Found OpenBabel3 libraries at ${OPENBABEL3_LIBRARIES}")
 
 add_executable(smina src/main/main.cpp)
 target_link_libraries(smina libsmina)
+target_link_libraries(smina Threads::Threads)
