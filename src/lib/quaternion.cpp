@@ -109,10 +109,11 @@ mat quaternion_to_r3(const qt& q) {
 }
 
 qt random_orientation(rng& generator) {
-	qt q(random_normal(0, 1, generator), 
-		 random_normal(0, 1, generator), 
-		 random_normal(0, 1, generator), 
-		 random_normal(0, 1, generator));
+	fl a0 = random_normal(0, 1, generator);
+	fl a1 = random_normal(0, 1, generator);
+	fl a2 = random_normal(0, 1, generator);
+	fl a3 = random_normal(0, 1, generator);
+	qt q(a0,a1,a2,a3);
 	fl nrm = boost::math::abs(q);
 	if(nrm > epsilon_fl) {
 		q /= nrm;
