@@ -11,6 +11,21 @@ file(GLOB sminasrc
     "src/lib/*.h"
     "src/lib/*.cpp"
 )
+list(APPEND sminasrc "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
+
+message(${CMAKE_CURRENT_BINARY_DIR})
+# Add a custom command that produces version.cpp, plus
+# a dummy output that's not actually produced, in order
+# to force version.cmake to always be re-run before the build
+add_custom_command(
+    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version.cpp           
+    COMMAND ${CMAKE_COMMAND} -P
+            ${CMAKE_SOURCE_DIR}/CMake/version.cmake)
+add_custom_command(
+    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp)
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/_version.cpp PROPERTIES SYMBOLIC TRUE)
 
 add_library(libsmina
     ${sminasrc}
@@ -18,7 +33,7 @@ add_library(libsmina
 set_target_properties(libsmina PROPERTIES OUTPUT_NAME "smina")
 target_include_directories(libsmina PUBLIC src/lib/)
 set(Boost_NO_BOOST_CMAKE ON)  #apparently required for newer boosts?
-find_package(Boost REQUIRED COMPONENTS 
+find_package(Boost REQUIRED  COMPONENTS 
   iostreams 
   timer 
   system 

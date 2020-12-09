@@ -48,6 +48,7 @@
 #include "box.h"
 #include "flexinfo.h"
 #include "builtinscoring.h"
+#include "version.h"
 
 using namespace boost::iostreams;
 using boost::filesystem::path;
@@ -841,7 +842,7 @@ int main(int argc, char* argv[])
 {
 	using namespace boost::program_options;
 	const std::string version_string =
-			"Smina " __DATE__ ".  Based on AutoDock Vina 1.1.2.";
+			std::string("smina ") + GIT_TAG + " " + GIT_BRANCH + ":"+GIT_REV + "   Built " __DATE__ ".  Based on AutoDock Vina 1.1.2.";
 	const std::string error_message =
 			"\n\n\
 Please report this error at http://smina.sf.net\n"
