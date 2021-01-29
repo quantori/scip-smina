@@ -41,8 +41,8 @@ make -j12
 *Note:*  OpenBabel3 is required.
 
 Input:
-  -r [ --receptor ] arg rigid part of the receptor (PDBQT)
-  --flex arg            flexible side chains, if any (PDBQT)
+  -r [ --receptor ] arg rigid part of the receptor 
+  --flex arg            flexible side chains, if any 
   -l [ --ligand ] arg   ligand(s)
   --flexres arg         flexible side chains specified by comma separated list 
                         of chain:resid
