@@ -197,3 +197,19 @@ void result_info::write(std::ostream& out, std::string& ext,
 		format->WriteMolecule(&mol, &outconv); //conv ignores isLast
 	}
 }
+
+void result_info::writeResultInfo(std::string &data, int modelnum) {
+    data.append("MODEL ");
+    data.append(boost::lexical_cast<std::string>(modelnum));
+    data.append("\n");
+    data.append("REMARK minimizedAffinity ");
+    data.append(boost::lexical_cast<std::string>((float) energy));
+    data.append("\n");
+    data.append("REMARK minimizedRMSD ");
+    data.append(boost::lexical_cast<std::string>((float) rmsd));
+    data.append("\n");
+    data.append(molstr);
+    data.append("ENDMDL\n");
+}
+
+

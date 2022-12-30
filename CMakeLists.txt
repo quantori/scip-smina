@@ -1,65 +1,91 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 2.8.12)
 project(smina)
+set (CMAKE_CXX_STANDARD 14)
+set (CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-as-needed")
+ # otherwise libboost_chrono is ignored for some reason and is not found afterwards
 
+if (BUILD_SUB_CMAKE)
+    if(UNIX AND NOT APPLE)
+        set(OS "Linux")
+    elseif(UNIX AND APPLE)
+        set(OS "macOS")
+    elseif(WIN32)
+        set(OS "win32")
+    endif()
+    if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
+        set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}../../../../../DockingInterface/DockingInterface/C_Dynamic_Libs/${OS}/arm64)
+    else()
+        set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}../../../../../DockingInterface/DockingInterface/C_Dynamic_Libs/${OS}/${CMAKE_SYSTEM_PROCESSOR})
+    endif()
+endif()
 if(NOT CMAKE_BUILD_TYPE)
-        set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release)
 endif(NOT CMAKE_BUILD_TYPE)
-
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMake/Modules)
-
-file(GLOB sminasrc
-    "src/lib/*.h"
-    "src/lib/*.cpp"
-)
-list(APPEND sminasrc "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
-
-message(${CMAKE_CURRENT_BINARY_DIR})
-# Add a custom command that produces version.cpp, plus
-# a dummy output that's not actually produced, in order
-# to force version.cmake to always be re-run before the build
-add_custom_command(
-    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp
-    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version.cpp           
-    COMMAND ${CMAKE_COMMAND} -P
-            ${CMAKE_SOURCE_DIR}/CMake/version.cmake)
-add_custom_command(
-    OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp)
-set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/_version.cpp PROPERTIES SYMBOLIC TRUE)
-
-add_library(libsmina
-    ${sminasrc}
-)
-set_target_properties(libsmina PROPERTIES OUTPUT_NAME "smina")
-target_include_directories(libsmina PUBLIC src/lib/)
-set(Boost_NO_BOOST_CMAKE ON)  #apparently required for newer boosts?
-find_package(Boost REQUIRED  COMPONENTS 
-  iostreams 
-  timer 
-  system 
-  regex 
-  thread 
-  serialization 
-  filesystem 
-  program_options 
-  date_time
-)
-include_directories(libsmina ${Boost_INCLUDE_DIRS})
-target_link_libraries(libsmina ${Boost_LIBRARIES})
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMake/Modules)
+#add_compile_options(-lboost_thread-mt)
+include_directories(src/lib)
+if (BOOST_ROOT)
+    include_directories(${BOOST_ROOT}/include)
+    include_directories(${BOOST_ROOT}/lib)
+    set(Boost_INCLUDE_DIRS "${BOOST_ROOT}/include")
+    set(Boost_NO_SYSTEM_PATHS TRUE)
+    set(Boost_NO_BOOST_CMAKE TRUE)
+endif()
+find_package(Boost COMPONENTS program_options thread system filesystem regex serialization timer iostreams chrono REQUIRED)
 message("-- Found Boost include files at ${Boost_INCLUDE_DIRS}")
 message("-- Found Boost libraries at ${Boost_LIBRARIES}")
 
-find_package(Eigen3 REQUIRED)
-include_directories(libsmina ${EIGEN3_INCLUDE_DIRS})
+
+set(EIGEN3_INCLUDE_DIRS /eigen)
+#include_directories(${EIGEN3_INCLUDE_DIRS})
 message("-- Found Eigen3 include files at ${EIGEN3_INCLUDE_DIRS}")
 
-#flexible docking implementation requires features of openbabel3
-find_package(OpenBabel3 REQUIRED)
-include_directories(libsmina ${OPENBABEL3_INCLUDE_DIR})
-target_link_libraries(libsmina ${OPENBABEL3_LIBRARIES})
-message("-- Found OpenBabel3 include files at ${OPENBABEL3_INCLUDE_DIR}")
-message("-- Found OpenBabel3 libraries at ${OPENBABEL3_LIBRARIES}")
+if (OPENBABEL3_ROOT)
+    set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL3_ROOT}/include/openbabel3")
+    set(OPENBABEL3_LIBRARIES "${OPENBABEL3_ROOT}/lib/libopenbabel.so" "${OPENBABEL3_ROOT}/lib/libcoordgen.so" "${OPENBABEL3_ROOT}/lib/libmaeparser.so")
+    include_directories(${OPENBABEL3_INCLUDE_DIR})
+    set(LIBS ${Boost_LIBRARIES} ${OPENBABEL3_LIBRARIES})
+    message("-- Found OpenBabel3 include files at ${OPENBABEL3_INCLUDE_DIR}")
+elseif (OPENBABEL2_ROOT)
+    set(OPENBABEL2_INCLUDE_DIR "${OPENBABEL2_ROOT}/include/openbabel2")
+    set(OPENBABEL2_LIBRARIES "${OPENBABEL2_ROOT}/lib/libopenbabel.so")
+    include_directories(${OPENBABEL2_INCLUDE_DIR})
+    set(LIBS ${Boost_LIBRARIES} ${OPENBABEL2_LIBRARIES})
+    message("-- Found OpenBabel2 include files at ${OPENBABEL2_INCLUDE_DIR}")
+else()
+    find_package(OpenBabel3 QUIET)
+    if (OPENBABEL3_INCLUDE_DIR)
+        include_directories(${OPENBABEL3_INCLUDE_DIR})
+        set(LIBS ${Boost_LIBRARIES} ${OPENBABEL3_LIBRARIES} )
+        message("-- Found OpenBabel3 include files at ${OPENBABEL3_INCLUDE_DIR}")
+    else()
+        find_package(OpenBabel2 REQUIRED)
+        include_directories(${OPENBABEL2_INCLUDE_DIR})
+        message("-- Found OpenBabel2 include files at ${OPENBABEL2_INCLUDE_DIR}")
+        set(LIBS ${Boost_LIBRARIES} ${OPENBABEL2_LIBRARIES} )
+    endif()
+endif ()
 
-add_executable(smina src/main/main.cpp)
-target_link_libraries(smina libsmina)
-target_link_libraries(smina Threads::Threads)
+file(GLOB srcsmina
+        "src/lib/*.h"
+        "src/lib/*.cpp"
+        "src/main/main.cpp")
+list(APPEND srcsmina "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
+add_custom_command(
+        OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp
+        BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
+        COMMAND ${CMAKE_COMMAND} -P
+        ${CMAKE_SOURCE_DIR}/CMake/version.cmake)
+add_custom_command(
+        OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
+        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp)
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/_version.cpp PROPERTIES SYMBOLIC TRUE)
+add_library(sminaDynamic SHARED ${srcsmina} src/main/main.cpp)
+set_target_properties(sminaDynamic PROPERTIES CXX_VISIBILITY_PRESET hidden)
+if (NEEDEX)
+    add_executable(smina ${srcsmina})
+    target_link_libraries(smina ${LIBS})
+endif()
+
+target_link_libraries(sminaDynamic ${LIBS})

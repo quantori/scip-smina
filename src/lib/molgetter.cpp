@@ -39,6 +39,12 @@ void MolGetter::setInputFile(const std::string& fname)
 	}
 }
 
+void MolGetter::setBuffer(std::string buffer) {
+    this->buffer = buffer;
+    type = PDBQT;
+    pdbqtdone = false;
+}
+
 //initialize model to initm and add next molecule
 //return false if no molecule available;
 bool MolGetter::readMoleculeIntoModel(model &m)
@@ -87,11 +93,19 @@ bool MolGetter::readMoleculeIntoModel(model &m)
 		break;
 	case PDBQT:
 		{
-		if (pdbqtdone)
-			return false; //can only read one
-		m.append(parse_ligand_pdbqt(lpath));
-		pdbqtdone = true;
-		return true;
+		    if (buffer != ""){
+                if (pdbqtdone)
+                    return false; //can only read one
+		        m.append(parse_ligand_buffer(this->buffer));
+                pdbqtdone = true;
+		        return true;
+		    } else {
+                if (pdbqtdone)
+                    return false; //can only read one
+                m.append(parse_ligand_pdbqt(lpath));
+                pdbqtdone = true;
+                return true;
+            }
 	}
 		break;
 	case OB:
@@ -133,3 +147,4 @@ bool MolGetter::readMoleculeIntoModel(model &m)
 	}
 	return false; //shouldn't get here
 }
+

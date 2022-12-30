@@ -21,7 +21,7 @@ class MolGetter
 {
 	const model& initm;
 	enum Type {OB, PDBQT, SMINA}; //different inputs
-
+    std::string buffer = "";
 	Type type;
 	path lpath;
 	bool add_hydrogens;
@@ -39,6 +39,7 @@ public:
 
 	//setup for reading from fname
 	void setInputFile(const std::string& fname);
+	void setBuffer(std::string);
 
 	//initialize model to initm and add next molecule
 	//return false if no molecule available;
@@ -48,3 +49,4 @@ public:
 
 
 #endif /* MOLGETTER_H_ */
+

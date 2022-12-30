@@ -53,7 +53,13 @@
 using namespace boost::iostreams;
 using boost::filesystem::path;
 
-
+struct resultData{
+    char** pdbqtFormatData;
+    fl** resArray;
+    int count;
+    int* len;
+};
+typedef resultData res;
 //just a collection of user-specified configurations
 struct user_settings
 {
@@ -201,7 +207,7 @@ output_container remove_redundant(const output_container& in, fl min_rmsd)
 }
 
 //dkoes - return all energies and rmsds to original conf with result
-void do_search(model& m, const boost::optional<model>& ref,
+res* do_search(model& m, const boost::optional<model>& ref,
 		const weighted_terms& sf, const precalculate& prec, const igrid& ig,
 		non_cache& nc, // nc.slope is changed
 		const vec& corner1, const vec& corner2,
@@ -210,7 +216,7 @@ void do_search(model& m, const boost::optional<model>& ref,
 		const terms *t, grid& user_grid, std::vector<result_info>& results)
 {
 	boost::timer::cpu_timer time;
-
+    res* resStruct;
 	precalculate_exact exact_prec(sf); //use exact computations for final score
 	conf_size s = m.get_size();
 	conf c = m.get_initial_conf();
@@ -342,8 +348,18 @@ void do_search(model& m, const boost::optional<model>& ref,
 			best_mode_model.set(out_cont.front().c);
 
 		sz how_many = 0;
+        int count = 0;
+        resStruct = (res*)(malloc(sizeof(res)));
+        resStruct->count = 0;
+        resStruct->resArray = (fl**)(malloc(1 * sizeof(fl *)));
+        resStruct->resArray[0] = (fl*)(malloc(4*sizeof(fl)));
 		VINA_FOR_IN(i, out_cont)
 		{
+            if (count > resStruct->count) {
+                resStruct->count += 1;
+                resStruct->resArray = (fl**)(realloc(resStruct->resArray, (resStruct->count+1)*sizeof(fl*)));
+                resStruct->resArray[resStruct->count] = (fl*)(malloc(4*sizeof(fl)));
+            }
 			if (how_many >= settings.num_modes || !not_max(out_cont[i].e)
 					|| out_cont[i].e > out_cont[0].e + settings.energy_range)
 				break; // check energy_range sanity FIXME
@@ -358,6 +374,11 @@ void do_search(model& m, const boost::optional<model>& ref,
 					<< std::setw(9) << std::setprecision(3) << ub; // FIXME need user-readable error messages in case of failures
 
 			log.endl();
+            resStruct->resArray[resStruct->count][0] = i+1;
+            resStruct->resArray[resStruct->count][1] = out_cont[i].e;
+            resStruct->resArray[resStruct->count][2] = lb;
+            resStruct->resArray[resStruct->count][3] = ub;
+            count+=1;
 
 			//dkoes - setup result_info
 			results.push_back(result_info(out_cont[i].e, -1, m));
@@ -376,6 +397,7 @@ void do_search(model& m, const boost::optional<model>& ref,
 		}
 	}
 	std::cout << "Refine time " << time.elapsed().wall / 1000000000.0 << "\n";
+    return resStruct;
 }
 
 void load_ent_values(const grid_dims& gd, std::istream& user_in,
@@ -398,7 +420,7 @@ void load_ent_values(const grid_dims& gd, std::istream& user_in,
 	std::cout << user_data(gd[0].n - 3, gd[1].n, gd[2].n) << "\n";
 }
 
-void main_procedure(model& m, precalculate& prec,
+res* main_procedure(model& m, precalculate& prec,
 		const boost::optional<model>& ref, // m is non-const (FIXME?)
 		const user_settings& settings,
 		bool no_cache, bool compute_atominfo, bool gpu_on,
@@ -406,6 +428,7 @@ void main_procedure(model& m, precalculate& prec,
 		const weighted_terms& wt, tee& log,
 		std::vector<result_info>& results, grid& user_grid)
 {
+    res* resStruct;
 	doing(settings.verbosity, "Setting up the scoring function", log);
 
 	done(settings.verbosity, log);
@@ -434,7 +457,7 @@ void main_procedure(model& m, precalculate& prec,
 	{
 		fl e = do_randomization(m, corner1, corner2, settings.seed, settings.verbosity, log);
 		results.push_back(result_info(e, -1, m));
-		return;
+		exit(0);
 	}
 	else
 	{
@@ -454,7 +477,7 @@ void main_procedure(model& m, precalculate& prec,
 		}
 		if (no_cache)
 		{
-			do_search(m, ref, wt, prec, *nc, *nc, corner1, corner2, par,
+		    resStruct = do_search(m, ref, wt, prec, *nc, *nc, corner1, corner2, par,
 					settings, compute_atominfo, log,
 					wt.unweighted_terms(), user_grid,
 					results);
@@ -473,12 +496,13 @@ void main_procedure(model& m, precalculate& prec,
 			}
 			if (cache_needed)
 				done(settings.verbosity, log);
-			do_search(m, ref, wt, prec, c, *nc, corner1, corner2, par,
+            resStruct = do_search(m, ref, wt, prec, c, *nc, corner1, corner2, par,
 					settings, compute_atominfo, log,
 					wt.unweighted_terms(), user_grid, results);
 		}
 		delete nc;
 	}
+    return resStruct;
 }
 
 struct usage_error: public std::runtime_error
@@ -909,7 +933,7 @@ Thank you!\n";
 		bool print_atom_types = false;
 		bool add_hydrogens = true;
 		bool no_lig = false;
-
+        std::string ligand_buffer = "";
 		user_settings settings;
 		minimization_params minparms;
 		ApproxType approx = LinearApprox;
@@ -919,6 +943,7 @@ Thank you!\n";
 
 		options_description inputs("Input");
 		inputs.add_options()
+		("buffer", value<std::string>(&ligand_buffer), "ligand buffer")
 		("receptor,r", value<std::string>(&rigid_name),
 				"rigid part of the receptor")
 		("flex", value<std::string>(&flex_name),
@@ -929,6 +954,7 @@ Thank you!\n";
 				"flexible side chains specified by comma separated list of chain:resid or chain:resid:icode")
 		("flexdist_ligand", value<std::string>(&flexdist_ligand),
 						"Ligand to use for flexdist")
+
 		("flexdist", value<double>(&flex_dist),
 				"set all side chains within specified distance to flexdist_ligand to flexible");
 
@@ -1143,26 +1169,7 @@ Thank you!\n";
 			}
 		}
 
-		if (ligand_names.size() == 0)
-		{
-			if (!no_lig)
-			{
-				std::cerr << "Missing ligand.\n" << "\nCorrect usage:\n"
-						<< desc_simple << '\n';
-				return 1;
-			}
-			else //put in "fake" ligand
-			{
-				ligand_names.push_back("");
-			}
-		}
-		else if (no_lig) //ligand specified with no_lig
-		{
-			std::cerr << "Ligand specified with --no_lig.\n"
-					<< "\nCorrect usage:\n"
-					<< desc_simple << '\n';
-			return 1;
-		}
+
 
 		if (settings.exhaustiveness < 1)
 			throw usage_error("exhaustiveness must be 1 or greater");
@@ -1358,11 +1365,71 @@ Thank you!\n";
 		boost::timer::cpu_timer time;
 		MolGetter mols(initm, add_hydrogens);
 		//loop over input ligands
+		if (ligand_names.size() == 0){
+            doing(settings.verbosity, "Reading input", log);
+            mols.setBuffer(ligand_buffer);
+
+
+            //process input molecules one at a time
+            unsigned i = 0;
+            model m;
+            while (no_lig || mols.readMoleculeIntoModel(m))
+            {
+                if(no_lig)
+                {
+                    no_lig = false; //only go through loop once
+                    m = initm;
+                }
+                if (settings.local_only)
+                {
+                    //dkoes - for convenience get box from model
+                    gd = m.movable_atoms_box(autobox_add, granularity);
+                }
+
+                boost::optional<model> ref;
+                done(settings.verbosity, log);
+
+                std::stringstream output;
+                std::vector<result_info> results;
+
+                main_procedure(m, *prec, ref, settings,
+                               false, // no_cache == false
+                               atomoutfile.is_open() || settings.include_atom_info, gpu_on,
+                               gd,minparms, wt,log, results, user_grid);
+
+                if (outfile)
+                {
+                    //write out molecular data
+                    for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                    {
+                        results[j].write(outfile, outext, settings.include_atom_info, &wt, j+1);
+                    }
+                }
+                if(outflex)
+                {
+                    //write out flexible residue data data
+                    for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                    {
+                        results[j].writeFlex(outflex, outfext, j+1);
+                    }
+                }
+                if (atomoutfile)
+                {
+                    for (unsigned j = 0, m = results.size(); j < m; j++)
+                    {
+                        results[j].writeAtomValues(atomoutfile, &wt);
+                    }
+                }
+                i++;
+            }
+		}
 		for (unsigned l = 0, nl = ligand_names.size(); l < nl; l++)
 		{
 			doing(settings.verbosity, "Reading input", log);
 			const std::string& ligand_name = ligand_names[l];
 			mols.setInputFile(ligand_name);
+
+
 
 			//process input molecules one at a time
 			unsigned i = 0;
@@ -1468,4 +1535,820 @@ Thank you!\n";
 		return 1;
 	}
     
+}
+
+extern "C" {
+#include <stdlib.h>
+    using namespace boost::program_options;
+    __attribute__ ((visibility ("default")))
+    res* runSmina(int argc, char* argv[]){
+        const std::string version_string =
+                std::string("smina ") + GIT_TAG + " " + GIT_BRANCH + ":"+GIT_REV + "   Built " __DATE__ ".  Based on AutoDock Vina 1.1.2.";
+        const std::string error_message =
+                "\n\n\
+Please report this error at http://smina.sf.net\n"
+                "Please remember to include the following in your problem report:\n\
+    * the EXACT error message,\n\
+    * your version of the program,\n\
+    * the type of computer system you are running it on,\n\
+	* all command line options,\n\
+	* configuration file (if used),\n\
+    * ligand file,\n\
+    * receptor file,\n\
+	* flexible side chains file (if used),\n\
+	* output file  (if any),\n\
+    * input (if possible),\n\
+	* random seed the program used (this is printed when the program starts).\n\
+\n\
+Thank you!\n";
+
+        const std::string cite_message =
+                "   _______  _______ _________ _        _______ \n"
+                "  (  ____ \\(       )\\__   __/( (    /|(  ___  )\n"
+                "  | (    \\/| () () |   ) (   |  \\  ( || (   ) |\n"
+                "  | (_____ | || || |   | |   |   \\ | || (___) |\n"
+                "  (_____  )| |(_)| |   | |   | (\\ \\) ||  ___  |\n"
+                "        ) || |   | |   | |   | | \\   || (   ) |\n"
+                "  /\\____) || )   ( |___) (___| )  \\  || )   ( |\n"
+                "  \\_______)|/     \\|\\_______/|/    )_)|/     \\|\n"
+                "\n\nsmina is based off AutoDock Vina. Please cite appropriately.\n";
+
+        try
+        {
+            res* resStruct;
+            std::string rigid_name, flex_name, config_name, log_name, atom_name;
+            std::vector<std::string> ligand_names;
+            std::string out_name;
+            std::string outf_name;
+            std::string ligand_names_file;
+            std::string atomconstants_file;
+            std::string custom_file_name;
+            std::string usergrid_file_name;
+            std::string flex_res;
+            double flex_dist = -1.0;
+            fl center_x = 0, center_y = 0, center_z = 0, size_x = 0, size_y = 0,
+                    size_z = 0;
+            fl autobox_add = 4;
+            std::string autobox_ligand;
+            std::string flexdist_ligand;
+            std::string builtin_scoring;
+            int device = 0;
+
+            // -0.035579, -0.005156, 0.840245, -0.035069, -0.587439, 0.05846
+            fl weight_gauss1 = -0.035579;
+            fl weight_gauss2 = -0.005156;
+            fl weight_repulsion = 0.840245;
+            fl weight_hydrophobic = -0.035069;
+            fl weight_hydrogen = -0.587439;
+            fl weight_rot = 0.05846;
+            fl user_grid_lambda;
+            bool help = false, help_hidden = false, version = false;
+            bool quiet = false;
+            bool accurate_line = false;
+            bool flex_hydrogens = false;
+            bool gpu_on = false;
+            bool print_terms = false;
+            bool print_atom_types = false;
+            bool add_hydrogens = true;
+            bool no_lig = false;
+            std::string ligand_buffer = "";
+            user_settings settings;
+            minimization_params minparms;
+            ApproxType approx = LinearApprox;
+            fl approx_factor = 32;
+
+            positional_options_description positional; // remains empty
+
+            options_description inputs("Input");
+            inputs.add_options()
+                    ("buffer", value<std::string>(&ligand_buffer), "ligand buffer")
+                    ("receptor,r", value<std::string>(&rigid_name),
+                     "rigid part of the receptor")
+                    ("flex", value<std::string>(&flex_name),
+                     "flexible side chains, if any")
+                    ("ligand,l", value<std::vector<std::string> >(&ligand_names),
+                     "ligand(s)")
+                    ("flexres", value<std::string>(&flex_res),
+                     "flexible side chains specified by comma separated list of chain:resid or chain:resid:icode")
+                    ("flexdist_ligand", value<std::string>(&flexdist_ligand),
+                     "Ligand to use for flexdist")
+                    ("flexdist", value<double>(&flex_dist),
+                     "set all side chains within specified distance to flexdist_ligand to flexible");
+
+            //options_description search_area("Search area (required, except with --score_only)");
+            options_description search_area("Search space (required)");
+            search_area.add_options()
+                    ("center_x", value<fl>(&center_x), "X coordinate of the center")
+                    ("center_y", value<fl>(&center_y), "Y coordinate of the center")
+                    ("center_z", value<fl>(&center_z), "Z coordinate of the center")
+                    ("size_x", value<fl>(&size_x), "size in the X dimension (Angstroms)")
+                    ("size_y", value<fl>(&size_y), "size in the Y dimension (Angstroms)")
+                    ("size_z", value<fl>(&size_z), "size in the Z dimension (Angstroms)")
+                    ("autobox_ligand", value<std::string>(&autobox_ligand),
+                     "Ligand to use for autobox")
+                    ("autobox_add", value<fl>(&autobox_add),
+                     "Amount of buffer space to add to auto-generated box (default +4 on all six sides)")
+                    ("no_lig", bool_switch(&no_lig)->default_value(false),
+                     "no ligand; for sampling/minimizing flexible residues");
+
+            //options_description outputs("Output prefixes (optional - by default, input names are stripped of .pdbqt\nare used as prefixes. _001.pdbqt, _002.pdbqt, etc. are appended to the prefixes to produce the output names");
+            options_description outputs("Output (optional)");
+            outputs.add_options()
+                    ("out,o", value<std::string>(&out_name),
+                     "output file name, format taken from file extension")
+                    ("out_flex",value<std::string>(&outf_name),
+                     "output file for flexible receptor residues")
+                    ("log", value<std::string>(&log_name), "optionally, write log file")
+                    ("atom_terms", value<std::string>(&atom_name),
+                     "optionally write per-atom interaction term values")
+                    ("atom_term_data", bool_switch(&settings.include_atom_info)->default_value(false),
+                     "embedded per-atom interaction terms in output sd data");
+
+            options_description scoremin("Scoring and minimization options");
+            scoremin.add_options()
+                    ("scoring", value<std::string>(&builtin_scoring),"specify alternative builtin scoring function")
+                    ("custom_scoring", value<std::string>(&custom_file_name),
+                     "custom scoring function file")
+                    ("custom_atoms", value<std::string>(&atomconstants_file), "custom atom type parameters file")
+                    ("score_only", bool_switch(&settings.score_only)->default_value(false), "score provided ligand pose")
+                    ("local_only", bool_switch(&settings.local_only)->default_value(false),
+                     "local search only using autobox (you probably want to use --minimize)")
+                    ("minimize", bool_switch(&settings.dominimize)->default_value(false),
+                     "energy minimization")
+                    ("randomize_only", bool_switch(&settings.randomize_only),
+                     "generate random poses, attempting to avoid clashes")
+                    ("minimize_iters",
+                     value<unsigned>(&minparms.maxiters)->default_value(0),
+                     "number iterations of steepest descent; default scales with rotors and usually isn't sufficient for convergence")
+                    ("accurate_line", bool_switch(&accurate_line),
+                     "use accurate line search")
+                    ("minimize_early_term", bool_switch(&minparms.early_term),
+                     "Stop minimization before convergence conditions are fully met.")
+                    ("approximation", value<ApproxType>(&approx),
+                     "approximation (linear, spline, or exact) to use")
+                    ("factor", value<fl>(&approx_factor),
+                     "approximation factor: higher results in a finer-grained approximation")
+                    ("force_cap",value<fl>(&settings.forcecap),"max allowed force; lower values more gently minimize clashing structures")
+                    ("user_grid", value<std::string>(&usergrid_file_name),
+                     "Autodock map file for user grid data based calculations")
+                    ("user_grid_lambda", value<fl>(&user_grid_lambda)->default_value(-1.0),
+                     "Scales user_grid and functional scoring")
+                    ("print_terms", bool_switch(&print_terms),
+                     "Print all available terms with default parameterizations")
+                    ("print_atom_types", bool_switch(&print_atom_types), "Print all available atom types");
+
+            options_description hidden("Hidden options for internal testing");
+            hidden.add_options()
+                    ("verbosity", value<int>(&settings.verbosity)->default_value(1),
+                     "Adjust the verbosity of the output, default: 1")
+                    ("flex_hydrogens", bool_switch(&flex_hydrogens),
+                     "Enable torsions effecting only hydrogens (e.g. OH groups). This is stupid but provides compatibility with Vina.");
+
+
+            options_description misc("Misc (optional)");
+            misc.add_options()
+                    ("cpu", value<int>(&settings.cpu),
+                     "the number of CPUs to use (the default is to try to detect the number of CPUs or, failing that, use 1)")
+                    ("seed", value<int>(&settings.seed), "explicit random seed")
+                    ("exhaustiveness", value<int>(&settings.exhaustiveness)->default_value(8),
+                     "exhaustiveness of the global search (roughly proportional to time)")
+                    ("num_modes", value<sz>(&settings.num_modes)->default_value(9),
+                     "maximum number of binding modes to generate")
+                    ("energy_range", value<fl>(&settings.energy_range)->default_value(3.0),
+                     "maximum energy difference between the best binding mode and the worst one displayed (kcal/mol)")
+                    ("min_rmsd_filter", value<fl>(&settings.out_min_rmsd)->default_value(1.0),
+                     "rmsd value used to filter final poses to remove redundancy")
+                    ("quiet,q", bool_switch(&quiet), "Suppress output messages")
+                    ("addH", value<bool>(&add_hydrogens),
+                     "automatically add hydrogens in ligands (on by default)")
+#ifdef SMINA_GPU
+                ("device", value<int>(&device)->default_value(0), "GPU device to use")
+				("gpu", bool_switch(&gpu_on), "Turn on GPU acceleration")
+#endif
+                    ;
+
+            options_description config("Configuration file (optional)");
+            config.add_options()("config", value<std::string>(&config_name),
+                                 "the above options can be put here");
+            options_description info("Information (optional)");
+            info.add_options()
+                    ("help", bool_switch(&help), "display usage summary")
+                    ("help_hidden", bool_switch(&help_hidden),
+                     "display usage summary with hidden options")
+                    ("version", bool_switch(&version), "display program version");
+
+            options_description desc, desc_simple;
+            desc.add(inputs).add(search_area).add(outputs).add(scoremin).
+                    add(hidden).add(misc).add(config).add(info);
+            desc_simple.add(inputs).add(search_area).add(scoremin).
+                    add(outputs).add(misc).add(config).add(info);
+
+            variables_map vm;
+            try
+            {
+                store(
+                        command_line_parser(argc, argv).options(desc)
+                                .style(
+                                        command_line_style::default_style
+                                        ^ command_line_style::allow_guessing)
+                                .positional(positional).run(), vm);
+                notify(vm);
+            } catch (boost::program_options::error& e)
+            {
+                res* resStruct = (res*)(malloc(sizeof(res)));
+                resStruct->count = -1;
+                std::string str = "\nCommand line parse error: ";
+                str.append(e.what());
+                str.append("\nCorrect usage: ");
+                str.append(std::to_string(desc_simple.m_default_line_length));
+                resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+                resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+                std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+                return resStruct;
+            }
+            if (vm.count("config"))
+            {
+                try
+                {
+                    ifile config_stream(config_name);
+                    store(parse_config_file(config_stream, desc), vm);
+                    notify(vm);
+                } catch (boost::program_options::error& e)
+                {
+                    res* resStruct = (res*)(malloc(sizeof(res)));
+                    resStruct->count = -1;
+                    std::string str = "\nConfiguration file parse error: ";
+                    str.append(e.what());
+                    str.append("\nCorrect usage: ");
+                    str.append(std::to_string(desc_simple.m_default_line_length));
+                    resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+                    resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+                    std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+                    return resStruct;
+                }
+            }
+            if (help)
+            {
+                std::cout << desc_simple << '\n';
+                exit(0);
+            }
+            if (help_hidden)
+            {
+                std::cout << desc << '\n';
+                exit(0);
+            }
+            if (version)
+            {
+                std::cout << version_string << '\n';
+                exit(0);
+            }
+
+            if (!atomconstants_file.empty())
+                setup_atomconstants_from_file(atomconstants_file);
+
+            if (print_terms)
+            {
+                custom_terms t;
+                t.print_available_terms(std::cout);
+                exit(0);
+            }
+
+
+            if(print_atom_types)
+            {
+                print_atom_info(std::cout);
+                exit(0);
+            }
+
+#ifdef SMINA_GPU
+            initializeCUDA(device);
+#endif
+
+            set_fixed_rotable_hydrogens(!flex_hydrogens);
+
+            if (settings.dominimize) //set default settings for minimization
+            {
+                if(!vm.count("force_cap"))
+                    settings.forcecap = 10; //nice and soft
+                if (minparms.maxiters == 0)
+                    minparms.maxiters = 10000; //will presumably converge
+                settings.local_only = true;
+                minparms.type = minimization_params::BFGSAccurateLineSearch;
+
+                if (!vm.count("approximation"))
+                    approx = SplineApprox;
+                if (!vm.count("factor"))
+                    approx_factor = 10;
+            }
+
+            if (accurate_line)
+            {
+                minparms.type = minimization_params::BFGSAccurateLineSearch;
+            }
+
+            bool search_box_needed = !(settings.score_only || settings.local_only); // randomize_only and local_only still need the search space; dkoes - for local get box from ligand
+            bool output_produced = !settings.score_only;
+            bool receptor_needed = !settings.randomize_only;
+
+            if (receptor_needed)
+            {
+                if (vm.count("receptor") <= 0)
+                {
+                    res* resStruct = (res*)(malloc(sizeof(res)));
+                    resStruct->count = -1;
+                    std::string str = "\nMissing receptor.\nCorrect usage: ";
+                    str.append(std::to_string(desc_simple.m_default_line_length));
+                    resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+                    resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+                    std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+                    return nullptr;
+                }
+            }
+
+
+            if (settings.exhaustiveness < 1)
+                throw usage_error("exhaustiveness must be 1 or greater");
+            if (settings.num_modes < 1)
+                throw usage_error("num_modes must be 1 or greater");
+
+            boost::optional<std::string> flex_name_opt;
+            if (vm.count("flex"))
+                flex_name_opt = flex_name;
+
+            if (vm.count("flex") && !vm.count("receptor"))
+                throw usage_error(
+                        "Flexible side chains are not allowed without the rest of the receptor"); // that's the only way parsing works, actually
+
+            tee log(quiet);
+            if (vm.count("log") > 0)
+                log.init(log_name);
+
+            std::ofstream atomoutfile;
+            if (vm.count("atom_terms") > 0)
+                atomoutfile.open(atom_name.c_str());
+
+            if (autobox_ligand.length() > 0)
+            {
+                setup_autobox(autobox_ligand, autobox_add,
+                              center_x, center_y, center_z,
+                              size_x, size_y, size_z);
+            }
+
+            if (search_box_needed && autobox_ligand.length() == 0)
+            {
+                options_occurrence oo = get_occurrence(vm, search_area);
+                if (!oo.all)
+                {
+                    check_occurrence(vm, search_area);
+                    res* resStruct = (res*)(malloc(sizeof(res)));
+                    resStruct->count = -1;
+                    std::string str = "\nCorrect usage:\n";
+                    str.append(std::to_string(desc_simple.m_default_line_length));
+                    resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+                    resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+                    std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+                    return resStruct;
+                }
+                if (size_x <= 0 || size_y <= 0 || size_z <= 0)
+                    throw usage_error("Search space dimensions should be positive");
+            }
+
+            if(flex_dist > 0 && flexdist_ligand.size() == 0)
+            {
+                throw usage_error("Must specify flexdist_ligand with flex_dist");
+            }
+
+            FlexInfo finfo(flex_res, flex_dist, flexdist_ligand, log);
+
+            log << cite_message << '\n';
+
+            grid_dims gd; // n's = 0 via default c'tor
+            grid_dims user_gd;
+            grid user_grid;
+
+            flv weights;
+
+            //dkoes, set the scoring function
+            custom_terms t;
+            if(user_grid_lambda != -1.0){
+                t.set_scaling_factor(user_grid_lambda);
+            }
+            if (custom_file_name.size() > 0)
+            {
+                ifile custom_file(custom_file_name);
+                t.add_terms_from_file(custom_file);
+            }
+            else if (builtin_scoring.size() > 0)
+            {
+                if(!builtin_scoring_functions.set(t, builtin_scoring))
+                {
+                    std::stringstream ss;
+                    builtin_scoring_functions.print_functions(ss);
+                    throw usage_error("Invalid builtin scoring function: "+builtin_scoring+". Options are:\n"+ss.str());
+                }
+            }
+            else
+            {
+                t.add("gauss(o=0,_w=0.5,_c=8)", -0.035579);
+                t.add("gauss(o=3,_w=2,_c=8)", -0.005156);
+                t.add("repulsion(o=0,_c=8)", 0.840245);
+                t.add("hydrophobic(g=0.5,_b=1.5,_c=8)", -0.035069);
+                t.add("non_dir_h_bond(g=-0.7,_b=0,_c=8)", -0.587439);
+                t.add("num_tors_div", 5 * 0.05846 / 0.1 - 1);
+            }
+
+            log << std::setw(12) << std::left << "Weights" << " Terms\n" << t
+                << "\n";
+
+            if (usergrid_file_name.size() > 0)
+            {
+                ifile user_in(usergrid_file_name);
+                fl ug_scaling_factor = 1.0;
+                if(user_grid_lambda != -1.0){
+                    ug_scaling_factor = 1 - user_grid_lambda;
+                }
+                setup_user_gd(user_gd, user_in);
+                user_grid.init(user_gd, user_in, ug_scaling_factor); //initialize user grid
+            }
+
+            const fl granularity = 0.375;
+            if (search_box_needed)
+            {
+                vec span(size_x, size_y, size_z);
+                vec center(center_x, center_y, center_z);
+                VINA_FOR_IN(i, gd)
+                {
+                    gd[i].n = sz(std::ceil(span[i] / granularity));
+                    fl real_span = granularity * gd[i].n;
+                    gd[i].begin = center[i] - real_span / 2;
+                    gd[i].end = gd[i].begin + real_span;
+                }
+            }
+
+            if (vm.count("cpu") == 0)
+            {
+                settings.cpu = boost::thread::hardware_concurrency();
+                if (settings.verbosity > 1)
+                {
+                    if (settings.cpu > 0)
+                        log << "Detected " << settings.cpu << " CPU"
+                            << ((settings.cpu > 1) ? "s" : "") << '\n';
+                    else
+                        log << "Could not detect the number of CPUs, using 1\n";
+                }
+            }
+            if (settings.cpu < 1)
+                settings.cpu = 1;
+            if (settings.verbosity > 1 && settings.exhaustiveness < settings.cpu)
+                log
+                        << "WARNING: at low exhaustiveness, it may be impossible to utilize all CPUs\n";
+            if (settings.verbosity <= 1) {
+                OpenBabel::obErrorLog.SetOutputLevel(OpenBabel::obError);
+            }
+
+            //dkoes - parse in receptor once
+            model initm;
+
+            create_init_model(rigid_name, flex_name, finfo, initm, log);
+
+            //dkoes, hoist precalculation outside of loop
+            weighted_terms wt(&t, t.weights());
+
+            boost::shared_ptr<precalculate> prec;
+
+            if (gpu_on || approx == GPU)
+            { //don't get a choice
+#ifdef SMINA_GPU
+                prec = boost::shared_ptr<precalculate>(new precalculate_gpu(wt, approx_factor));
+#endif
+            }
+            else if (approx == SplineApprox)
+                prec = boost::shared_ptr<precalculate>(
+                        new precalculate_splines(wt, approx_factor));
+            else if (approx == LinearApprox)
+                prec = boost::shared_ptr<precalculate>(
+                        new precalculate_linear(wt, approx_factor));
+            else if (approx == Exact)
+                prec = boost::shared_ptr<precalculate>(
+                        new precalculate_exact(wt));
+
+            //setup single outfile
+            using namespace OpenBabel;
+            ozfile outfile;
+            std::string outext;
+
+
+            ozfile outflex;
+            std::string outfext;
+            if(outf_name.length() > 0)
+            {
+                outfext = outflex.open(outf_name);
+            }
+
+            if(settings.score_only) //output header
+            {
+                std::vector<std::string> enabled_names = t.get_names(true);
+                log << "## Name";
+                VINA_FOR_IN(i, enabled_names)
+                {
+                    log << " " << enabled_names[i];
+                }
+                for (unsigned i = 0, n = t.conf_independent_terms.size(); i < n; i++)
+                {
+                    log << " " << t.conf_independent_terms[i].name;
+                }
+                log << "\n";
+            }
+
+            boost::timer::cpu_timer time;
+            MolGetter mols(initm, add_hydrogens);
+            //loop over input ligands
+            if (ligand_names.size() == 0){
+                //doing(settings.verbosity, "Reading input", log);
+                mols.setBuffer(ligand_buffer);
+
+
+                //process input molecules one at a time
+                unsigned i = 0;
+                model m;
+                while (no_lig || mols.readMoleculeIntoModel(m))
+                {
+                    if(no_lig)
+                    {
+                        no_lig = false; //only go through loop once
+                        m = initm;
+                    }
+                    if (settings.local_only)
+                    {
+                        //dkoes - for convenience get box from model
+                        gd = m.movable_atoms_box(autobox_add, granularity);
+                    }
+                    if (out_name.length() > 0)
+                    {
+                        outext = outfile.open(out_name);
+                    }
+                    boost::optional<model> ref;
+                    done(settings.verbosity, log);
+
+                    std::stringstream output;
+                    std::vector<result_info> results;
+
+                    resStruct = main_procedure(m, *prec, ref, settings,
+                                               false, // no_cache == false
+                                               atomoutfile.is_open() || settings.include_atom_info, gpu_on,
+                                               gd,minparms, wt,log, results, user_grid);
+
+                    std::vector<std::string> res;
+                    std::string data;
+                    for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                    {
+                        data.clear();
+                        results[j].writeResultInfo(data, j+1);
+                        res.push_back(data);
+                    }
+                    resStruct->len = (int*)(malloc(res.size()*sizeof(int)));
+                    resStruct->pdbqtFormatData = (char**)(malloc(res.size()*sizeof(char *)));
+                    for (int i = 0; i < res.size(); i++){
+                        resStruct->pdbqtFormatData[i] = (char*)(malloc((res[i].length()+1)*sizeof(char)));
+                        std::strcpy(resStruct->pdbqtFormatData[i], res[i].c_str());
+                        resStruct->len[i] = res[i].length();
+                    }
+
+                    if (outfile)
+                    {
+                        //write out molecular data
+                        for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                        {
+                            results[j].write(outfile, outext, settings.include_atom_info, &wt, j+1);
+                        }
+                    }
+                    if(outflex)
+                    {
+                        //write out flexible residue data data
+                        for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                        {
+                            results[j].writeFlex(outflex, outfext, j+1);
+                        }
+                    }
+                    if (atomoutfile)
+                    {
+                        for (unsigned j = 0, m = results.size(); j < m; j++)
+                        {
+                            results[j].writeAtomValues(atomoutfile, &wt);
+                        }
+                    }
+                    i++;
+                }
+            } else{
+            for (unsigned l = 0, nl = ligand_names.size(); l < nl; l++)
+            {
+                doing(settings.verbosity, "Reading input", log);
+                const std::string& ligand_name = ligand_names[l];
+                mols.setInputFile(ligand_name);
+                //process input molecules one at a time
+                unsigned i = 0;
+                model m;
+                while (no_lig || mols.readMoleculeIntoModel(m))
+                {
+                    if(no_lig)
+                    {
+                        no_lig = false; //only go through loop once
+                        m = initm;
+                    }
+                    if (settings.local_only)
+                    {
+                        //dkoes - for convenience get box from model
+                        gd = m.movable_atoms_box(autobox_add, granularity);
+                    }
+                    if (out_name.length() > 0)
+                    {
+                        outext = outfile.open(out_name);
+                    }
+                    boost::optional<model> ref;
+                    done(settings.verbosity, log);
+
+                    std::stringstream output;
+                    std::vector<result_info> results;
+
+                    resStruct = main_procedure(m, *prec, ref, settings,
+                                   false, // no_cache == false
+                                   atomoutfile.is_open() || settings.include_atom_info, gpu_on,
+                                   gd,minparms, wt,log, results, user_grid);
+
+                    std::vector<std::string> res;
+                    std::string data;
+                    for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                    {
+                        data.clear();
+                        results[j].writeResultInfo(data, j+1);
+                        res.push_back(data);
+                    }
+                    resStruct->len = (int*)(malloc(res.size()*sizeof(int)));
+                    resStruct->pdbqtFormatData = (char**)(malloc(res.size()*sizeof(char *)));
+                    for (int i = 0; i < res.size(); i++){
+                        resStruct->pdbqtFormatData[i] = (char*)(malloc((res[i].length()+1)*sizeof(char)));
+                        std::strcpy(resStruct->pdbqtFormatData[i], res[i].c_str());
+                        resStruct->len[i] = res[i].length();
+                    }
+
+                    if (outfile)
+                    {
+                        //write out molecular data
+                        for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                        {
+                            results[j].write(outfile, outext, settings.include_atom_info, &wt, j+1);
+                        }
+                    }
+                    if(outflex)
+                    {
+                        //write out flexible residue data data
+                        for (unsigned j = 0, nr = results.size(); j < nr; j++)
+                        {
+                            results[j].writeFlex(outflex, outfext, j+1);
+                        }
+                    }
+                    if (atomoutfile)
+                    {
+                        for (unsigned j = 0, m = results.size(); j < m; j++)
+                        {
+                            results[j].writeAtomValues(atomoutfile, &wt);
+                        }
+                    }
+                    i++;
+                }
+            }
+                if(outfile) outfile.flush();
+            }
+            std::cout << "Loop time " << time.elapsed().wall/1000000000.0 << "\n";
+            return resStruct;
+        } catch(file_error& e) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nError: could not open ";
+            str.append(e.name.string());
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch(boost::filesystem::filesystem_error& e) {
+
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nFile system error: ";
+            str.append(e.what());
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch(usage_error& e) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nUsage error: ";
+            str.append(e.what());
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch(parse_error& e) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nParse error on line ";
+
+            str.append(std::to_string(e.line));
+            str.append(" in file ");
+            str.append(e.file.string());
+            str.append(": ");
+            str.append(e.reason);
+            str.append("\n");
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch(std::bad_alloc&) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nError: insufficient memory!\n";
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch (scoring_function_error e)
+        {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nError with scoring function specification.\n";
+            str.append(e.msg);
+            str.append("[");
+            str.append(e.name);
+            str.append("]");
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+
+// Errors that shouldn't happen:
+
+        catch(std::exception& e) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nAn error occurred: ";
+            str.append(e.what());
+            str.append(". ");
+            str.append(error_message);
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch(internal_error& e) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nAn internal error occurred in ";
+            str.append(e.file);
+            str.append("(");
+            str.append(std::to_string(e.line));
+            str.append("). ");
+            str.append(error_message);
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+        catch(...) {
+            res* resStruct = (res*)(malloc(sizeof(res)));
+            resStruct->count = -1;
+            std::string str = "\nAn unknown error occurred. ";
+            str.append(error_message);
+            resStruct->pdbqtFormatData = (char**)(malloc(1*sizeof(char *)));
+            resStruct->pdbqtFormatData[0] = (char*)(malloc((str.length()+1)*sizeof(char)));
+            std::strcpy(resStruct->pdbqtFormatData[0], str.c_str());
+            return resStruct;
+        }
+    }
+__attribute__ ((visibility ("default")))
+void crash(){
+    *(int*)0= 1;
+};
+__attribute__ ((visibility ("default")))
+void freemem(res* result){
+    if (result->count != -1){
+        free(result->len);
+        for (int i = 0; i < result->count; i++) {
+            free(result->pdbqtFormatData[i]);
+            free(result->resArray[i]);
+        }
+        free(result->pdbqtFormatData);
+        free(result->resArray);
+    } else {
+        free(result->pdbqtFormatData[0]);
+        free(result->pdbqtFormatData);
+    }
+    free(result);
+}
 }

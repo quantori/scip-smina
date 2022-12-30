@@ -56,6 +56,7 @@ struct stream_parse_error: public  parse_error {
 	}
 };
 
+
 void add_pdbqt_context(context& c, const std::string& str) {
 	c.pdbqttext.push_back(parsed_line(str, boost::optional<sz>()));
 }
@@ -122,9 +123,6 @@ parsed_atom parse_pdbqt_atom_string(const std::string& str) {
 }
 
 
-
-
-
 unsigned parse_one_unsigned(const std::string& str, const std::string& start, unsigned count) {
 	std::istringstream in_str(str.substr(start.size()));
 	int tmp;
@@ -177,7 +175,6 @@ void parse_pdbqt_rigid(const std::string& name, std::istream& in, rigid& r) {
 	}
 }
 
-
 void parse_pdbqt_root_aux(std::istream& in, unsigned& count, parsing_struct& p, context& c) {
 	std::string str;
 	while(std::getline(in, str)) {
@@ -226,7 +223,7 @@ void parse_pdbqt_root(std::istream& in, unsigned& count, parsing_struct& p, cont
 	}
 }
 
-void parse_pdbqt_branch(std::istream& in, unsigned& count, parsing_struct& p, context& c, unsigned from, unsigned to); // forward declaration
+void parse_pdbqt_branch(std::istream& in, unsigned& count, parsing_struct& p, context& c, unsigned from, unsigned to);
 
 void parse_pdbqt_branch_aux(std::istream& in, unsigned& count, const std::string& str, parsing_struct& p, context& c) {
 	unsigned first, second;
@@ -320,8 +317,8 @@ void postprocess_branch(non_rigid_parsed& nr, parsing_struct& p, context& c, B& 
 	VINA_FOR_IN(i, p.atoms) {  // postprocess atoms into 'b.node'
 		parsing_struct::node& p_node = p.atoms[i];
 		if(p.immobile_atom && i == p.immobile_atom.get()) {} // skip immobile_atom - it's already inserted in "THERE"
-		else p_node.insert(nr, c, b.node.get_origin());
-		p_node.insert_immobiles(nr, c, b.node.get_origin());
+		/*else*/ p_node.insert(nr, c, b.node.get_origin());
+		/*p_node.insert_immobiles(nr, c, b.node.get_origin());*/
 	}
 	b.node.end = nr.atoms.size();
 
@@ -377,6 +374,24 @@ void postprocess_residue(non_rigid_parsed& nr, parsing_struct& p, context& c) {
 	VINA_CHECK(nr.atoms_atoms_bonds.dim() == nr.atoms.size());
 	VINA_CHECK(nr.atoms_inflex_bonds.dim_1() == nr.atoms.size());
 	VINA_CHECK(nr.atoms_inflex_bonds.dim_2() == nr.inflex.size());
+}
+void parse_buf_ligand( std::string& name, non_rigid_parsed& nr, context& c) {
+    unsigned count = 0;
+    parsing_struct p;
+    std::istringstream in(name);
+    boost::optional<unsigned> torsdof;
+    try {
+        parse_pdbqt_aux(in, count, p, c, torsdof, false);
+        if(p.atoms.empty())
+            throw parse_error(name, count, "No atoms in the ligand");
+        if(!torsdof)
+            throw parse_error(name, count, "Missing TORSDOF");
+        postprocess_ligand(nr, p, c, unsigned(torsdof.get())); // bizarre size_t -> unsigned compiler complaint
+    }
+    catch(stream_parse_error& e) {
+        throw e.to_parse_error(name);
+    }
+    VINA_CHECK(nr.atoms_atoms_bonds.dim() == nr.atoms.size());
 }
 
 //dkoes, stream version
@@ -493,6 +508,17 @@ model parse_ligand_stream_pdbqt  (const std::string& name, std::istream& in) { /
 	return tmp.m;
 }
 
+model parse_ligand_buffer(std::string name){ // can throw parse_error
+    non_rigid_parsed nrp;
+    context c;
+    parse_buf_ligand(name, nrp, c);
+
+    pdbqt_initializer tmp;
+    tmp.initialize_from_nrp(nrp, c, true);
+    tmp.initialize(nrp.mobility_matrix());
+    return tmp.m;
+}
+
 model parse_ligand_pdbqt  (const path& name) { // can throw parse_error
 	non_rigid_parsed nrp;
 	context c;
@@ -531,3 +557,4 @@ model parse_receptor_pdbqt(const std::string& rigid_name, std::istream& in) { //
 	tmp.initialize(mobility_matrix);
 	return tmp.m;
 }
+
